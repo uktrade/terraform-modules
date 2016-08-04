@@ -14,7 +14,7 @@ resource "aws_s3_bucket" "backup" {
     }
 }
 
-resource "template_file" "backup-policy" {
+data "template_file" "backup-policy" {
   template = "${file("${path.module}/service-backup-policy.tpl")}"
 
   vars {
@@ -34,7 +34,7 @@ resource "aws_iam_access_key" "backup" {
 resource "aws_iam_user_policy" "backup" {
     name = "${var.cluster}-${var.service}-backup"
     user = "${aws_iam_user.backup.name}"
-    policy = "${template_file.backup-policy.rendered}"
+    policy = "${data.template_file.backup-policy.rendered}"
 }
 
 

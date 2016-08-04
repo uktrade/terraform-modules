@@ -8,22 +8,13 @@ variable "subnet_a_id" {}
 variable "subnet_b_id" {}
 variable "subnet_public_a_id" {}
 variable "subnet_public_b_id" {}
-variable "aws_ssl_arn" {}
 variable "sg_base_id" {}
 variable "iam_role_arn" {}
 variable "iam_profile" {}
 variable "aws_instance_type" {}
 variable "aws_key_name" {}
 variable "ami" {}
-variable "app_conf" {}
-
-variable "app_internal" {}
-variable "web_container" {}
-variable "web_container_port" {}
-variable "web_container_expose" {}
-variable "capacity_min" {}
-variable "capacity_max" {}
-variable "capacity_desired" {}
+variable "app_conf" { type = "map" }
 
 module "cluster-app" {
   source = "../../modules/cluster"
@@ -32,9 +23,9 @@ module "cluster-app" {
   vpc_id = "${var.vpc_id}"
   subnet_a_id = "${var.subnet_a_id}"
   subnet_b_id = "${var.subnet_b_id}"
-  min_size = "${var.capacity_min}"
-  max_size = "${var.capacity_max}"
-  desired_capacity = "${var.capacity_desired}"
+  min_size = "${var.app_conf["capacity_min"]}"
+  max_size = "${var.app_conf["capacity_max"]}"
+  desired_capacity = "${var.app_conf["capacity_desired"]}"
   aws_image_id = "${var.ami}"
   aws_instance_type = "${var.aws_instance_type}"
   aws_key_name = "${var.aws_key_name}"
@@ -42,7 +33,7 @@ module "cluster-app" {
   sg_base_id = "${var.sg_base_id}"
 }
 
-resource "template_file" "task" {
+data "template_file" "task" {
   template = "${file("tasks/${var.service}.json")}"
 
   vars {
@@ -51,13 +42,12 @@ resource "template_file" "task" {
     cluster = "${var.cluster}"
     service = "${var.service}"
     aws_region = "${var.aws_region}"
-    app_conf = "${var.app_conf}"
   }
 }
 
 resource "aws_ecs_task_definition" "app" {
   family = "${var.stack}-${var.cluster}"
-  container_definitions = "${template_file.task.rendered}"
+  container_definitions = "${data.template_file.task.rendered}"
 
   volume {
     name = "${var.stack}"
@@ -69,7 +59,6 @@ resource "aws_ecs_task_definition" "app" {
   }
 }
 
-/* ELB for the service */
 resource "aws_elb" "service" {
   name  = "${var.stack}-${var.cluster}-${var.service}-elb"
   subnets = [
@@ -85,15 +74,15 @@ resource "aws_elb" "service" {
   listener {
     lb_port            = 80
     lb_protocol        = "http"
-    instance_port      = "${var.web_container_expose}"
+    instance_port      = "${var.app_conf["web_container_expose"]}"
     instance_protocol  = "http"
   }
 
   listener {
     lb_port            = 443
     lb_protocol        = "https"
-    ssl_certificate_id = "${var.aws_ssl_arn}"
-    instance_port      = "${var.web_container_expose}"
+    ssl_certificate_id = "${var.app_conf["aws_ssl_arn"]}"
+    instance_port      = "${var.app_conf["web_container_expose"]}"
     instance_protocol  = "http"
   }
 
@@ -101,13 +90,13 @@ resource "aws_elb" "service" {
     healthy_threshold   = 2
     unhealthy_threshold = 10
     timeout             = 30
-    target              = "TCP:${var.web_container_expose}"
+    target              = "TCP:${var.app_conf["web_container_expose"]}"
     interval            = 60
   }
 
   connection_draining = false
   cross_zone_load_balancing = true
-  internal = "${var.app_internal}"
+  internal = "${var.app_conf["internal"]}"
 
   tags {
     Stack = "${var.stack}"
@@ -140,26 +129,22 @@ resource "aws_security_group" "elb-sg" {
   }
 }
 
-# extending service-default sg with service rule
-# enable service cluster to receive traffic from service ELB
 resource "aws_security_group_rule" "service-http-ingress" {
   type = "ingress"
-  from_port = "${var.web_container_expose}"
-  to_port = "${var.web_container_expose}"
+  from_port = "${var.app_conf["web_container_expose"]}"
+  to_port = "${var.app_conf["web_container_expose"]}"
   protocol = "tcp"
 
   security_group_id = "${module.cluster-app.sg_cluster_id}"
   source_security_group_id = "${aws_security_group.elb-sg.id}"
 }
 
-# below ensures that we expose HTTPS
-# we still need to ensure SSH is exposed to ELB
 resource "aws_ecs_service" "service" {
   name = "${var.stack}-${var.cluster}-${var.service}"
   cluster = "${module.cluster-app.cluster_id}"
 
   task_definition = "${aws_ecs_task_definition.app.arn}"
-  desired_count = "${var.capacity_desired}"
+  desired_count = "${var.app_conf["capacity_desired"]}"
 
   iam_role = "${var.iam_role_arn}"
 
@@ -168,7 +153,7 @@ resource "aws_ecs_service" "service" {
 
   load_balancer {
     elb_name = "${aws_elb.service.id}"
-    container_name = "${var.web_container}"
-    container_port = "${var.web_container_port}"
+    container_name = "${var.app_conf["web_container"]}"
+    container_port = "${var.app_conf["web_container_port"]}"
   }
 }

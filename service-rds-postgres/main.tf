@@ -5,30 +5,22 @@ variable "vpc_id" {}
 variable "subnet_a_id" {}
 variable "subnet_b_id" {}
 variable "cluster_sg_id" {}
-variable "db_instance_type" {}
-variable "db" {}
-variable "app_conf" {}
-variable "db_name" {}
-variable "db_username" {}
-variable "db_password" {}
-variable "db_version" {}
-variable "db_family" {}
-variable "db_storage" {}
-variable "db_storage_iops" {}
-variable "db_storage_type" {}
+variable "db" { type = "map" }
+variable "app_conf" { type = "map" }
+
 
 resource "aws_db_instance" "app-db" {
   # count = "${element(split(",", var.db), index(split(",", var.db), enabled) + 1)}"
   identifier = "${var.stack}-${var.service}-db"
-  allocated_storage = "${var.db_storage}"
-  storage_type = "${var.db_storage_type}"
-  iops = "${var.db_storage_iops}"
+  allocated_storage = "${var.db["storage"]}"
+  storage_type = "${var.db["storage_type"]}"
+  iops = "${var.db["iops"]}"
   engine = "postgres"
-  engine_version = "${var.db_version}"
-  instance_class = "${var.db_instance_type}"
-  name = "${var.db_name}"
-  username = "${var.db_username}"
-  password = "${var.db_password}"
+  engine_version = "${var.db["version"]}"
+  instance_class = "${var.db["instance_type"]}"
+  name = "${var.app_conf["db_name"]}"
+  username = "${var.app_conf["db_username"]}"
+  password = "${var.app_conf["db_password"]}"
   parameter_group_name = "${aws_db_parameter_group.default-params.name}"
   db_subnet_group_name = "${aws_db_subnet_group.default-db-subnet.id}"
   vpc_security_group_ids = ["${aws_security_group.default-db-sg.id}"]
@@ -49,7 +41,7 @@ resource "aws_db_instance" "app-db" {
 
 resource "aws_db_parameter_group" "default-params" {
     name = "${var.stack}-${var.service}-params"
-    family = "${var.db_family}"
+    family = "${var.db["family"]}"
     description = "RDS default parameter group for ${var.stack}-${var.service}"
 
     parameter {
@@ -88,6 +80,6 @@ resource "aws_db_subnet_group" "default-db-subnet" {
     subnet_ids = ["${var.subnet_a_id}", "${var.subnet_b_id}"]
 }
 
-output "app-db-endpoint" {
-  value = "postgres://${var.db_username}:${var.db_password}@${aws_db_instance.app-db.endpoint}/${var.db_name}?sslmode=require"
+output "app_db_endpoint" {
+  value = "postgres://${var.app_conf["db_username"]}:${var.app_conf["db_password"]}@${aws_db_instance.app-db.endpoint}/${var.app_conf["db_name"]}?sslmode=require"
 }
