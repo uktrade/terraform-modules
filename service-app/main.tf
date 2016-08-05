@@ -201,3 +201,12 @@ resource "aws_ecs_service" "service" {
     container_port = "${var.app_conf["web_container_port"]}"
   }
 }
+
+resource "aws_appautoscaling_target" "autoscale-service" {
+  service_namespace = "${var.stack}-${var.cluster}-${var.service}"
+  resource_id = "service/${var.stack}-${var.cluster}/${var.stack}-${var.cluster}-${var.service}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  role_arn = "${var.iam_role_arn}"
+  min_capacity = "${var.app_conf["capacity_min"]}"
+  max_capacity = "${var.app_conf["capacity_max"]}"
+}
