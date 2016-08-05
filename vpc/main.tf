@@ -263,34 +263,25 @@ resource "aws_security_group" "base-sg" {
   }
 }
 
-output "vpc_id" {
-  value = "${aws_vpc.default.id}"
+data "null_data_source" "vpc_conf" {
+  inputs = {
+    id = "${aws_vpc.default.id}"
+    subnets = {
+      public = [
+        "${aws_subnet.public-1a.id}",
+        "${aws_subnet.public-1b.id}",
+        "${aws_subnet.public-1c.id}"
+      ]
+      private = [
+        "${aws_subnet.private-1a.id}",
+        "${aws_subnet.private-1b.id}",
+        "${aws_subnet.private-1c.id}"
+      ]
+    }
+    security_group = "${aws_security_group.base-sg.id}"
+  }
 }
 
-output "subnet_private_a_id" {
-  value = "${aws_subnet.private-1a.id}"
-}
-
-output "subnet_private_b_id" {
-  value = "${aws_subnet.private-1b.id}"
-}
-
-output "subnet_private_c_id" {
-  value = "${aws_subnet.private-1c.id}"
-}
-
-output "subnet_public_a_id" {
-  value = "${aws_subnet.public-1a.id}"
-}
-
-output "subnet_public_b_id" {
-  value = "${aws_subnet.public-1b.id}"
-}
-
-output "subnet_public_c_id" {
-  value = "${aws_subnet.public-1c.id}"
-}
-
-output "base_sg_id" {
-  value = "${aws_security_group.base-sg.id}"
+output "vpc_conf" {
+  value = "${data.null_data_source.vpc_conf.input}"
 }

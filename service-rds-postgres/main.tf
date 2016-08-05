@@ -1,17 +1,14 @@
 variable "stack" {}
 variable "cluster" {}
 variable "service" {}
-variable "vpc_id" {}
-variable "subnet_a_id" {}
-variable "subnet_b_id" {}
-variable "subnet_c_id" {}
+variable "vpc_conf" { type = "map" }
 variable "cluster_sg_id" {}
 variable "db" { type = "map" }
 variable "app_conf" { type = "map" }
 
 
 resource "aws_db_instance" "app-db" {
-  # count = "${element(split(",", var.db), index(split(",", var.db), enabled) + 1)}"
+  # count = "${var.app_conf["db_enabled"]}"
   identifier = "${var.stack}-${var.service}-db"
   allocated_storage = "${var.db["storage"]}"
   storage_type = "${var.db["storage_type"]}"
@@ -54,7 +51,7 @@ resource "aws_db_parameter_group" "default-params" {
 
 resource "aws_security_group" "default-db-sg" {
   name = "${var.stack}-${var.service}-sg"
-  vpc_id = "${var.vpc_id}"
+  vpc_id = "${var.vpc_conf["id"]}"
 
   ingress {
     from_port = 5432
@@ -78,7 +75,7 @@ resource "aws_security_group" "default-db-sg" {
 resource "aws_db_subnet_group" "default-db-subnet" {
     name = "${var.stack}-${var.service}-subnet"
     description = "${var.stack}-${var.service}-subnet"
-    subnet_ids = ["${var.subnet_a_id}", "${var.subnet_b_id}", "${var.subnet_c_id}"]
+    subnet_ids = ["${lookup(var.vpc_conf["subnets"], "private")}"]
 }
 
 output "app_db_endpoint" {

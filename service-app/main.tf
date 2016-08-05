@@ -3,15 +3,8 @@ variable "stack" {}
 variable "cluster" {}
 variable "service" { default = "app" }
 variable "aws_region" {}
-variable "vpc_id" {}
-variable "subnet_a_id" {}
-variable "subnet_b_id" {}
-variable "subnet_c_id" {}
-variable "subnet_public_a_id" {}
-variable "subnet_public_b_id" {}
-variable "subnet_public_c_id" {}
+variable "vpc_conf" { type = "map" }
 variable "aws_root_zone_id" {}
-variable "sg_base_id" {}
 variable "iam_role_arn" {}
 variable "iam_profile" {}
 variable "aws_instance_type" {}
@@ -32,15 +25,11 @@ module "cluster-app" {
   source = "../../modules/cluster"
   stack = "${var.stack}"
   cluster = "${var.cluster}"
-  vpc_id = "${var.vpc_id}"
-  subnet_a_id = "${var.subnet_a_id}"
-  subnet_b_id = "${var.subnet_b_id}"
-  subnet_c_id = "${var.subnet_c_id}"
+  vpc_conf = "${var.vpc_conf}"
   aws_image_id = "${var.ami}"
   aws_instance_type = "${var.aws_instance_type}"
   aws_key_name = "${var.aws_key_name}"
   iam_instance_profile_id = "${var.iam_profile}"
-  sg_base_id = "${var.sg_base_id}"
   app_conf = "${var.app_conf}"
 }
 
@@ -49,10 +38,7 @@ module "cluster-db" {
   stack = "${var.stack}"
   cluster = "${var.cluster}"
   service = "${var.service}"
-  vpc_id = "${var.vpc_id}"
-  subnet_a_id = "${var.subnet_a_id}"
-  subnet_b_id = "${var.subnet_b_id}"
-  subnet_c_id = "${var.subnet_c_id}"
+  vpc_conf = "${var.vpc_conf}"
   cluster_sg_id = "${module.cluster-app.sg_cluster_id}"
   db = "${var.db}"
   app_conf = "${var.app_conf}"
@@ -89,15 +75,11 @@ resource "aws_ecs_task_definition" "app" {
 
 resource "aws_elb" "service" {
   name  = "${var.stack}-${var.cluster}-${var.service}-elb"
-  subnets = [
-    "${var.subnet_public_a_id}",
-    "${var.subnet_public_b_id}",
-    "${var.subnet_public_c_id}"
-  ]
+  subnets = ["${lookup(var.vpc_conf["subnets"], "public")}"]
 
   security_groups = [
     "${aws_security_group.elb-sg.id}",
-    "${var.sg_base_id}"
+    "${var.vpc_conf["security_group"]}"
   ]
 
   listener {
@@ -137,7 +119,7 @@ resource "aws_security_group" "elb-sg" {
   name = "${var.stack}-${var.cluster}-${var.service}-elb"
   description = "ELB Incoming traffic"
 
-  vpc_id = "${var.vpc_id}"
+  vpc_id = "${var.vpc_conf["id"]}"
 
   ingress {
     from_port = 80

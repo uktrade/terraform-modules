@@ -1,15 +1,11 @@
 variable "stack" {}
 variable "cluster" {}
-variable "vpc_id" {}
-variable "subnet_a_id" {}
-variable "subnet_b_id" {}
-variable "subnet_c_id" {}
+variable "vpc_conf" { type = "map" }
 variable "desired_capacity" { default = 1 }
 variable "aws_image_id" {}
 variable "aws_instance_type" {}
 variable "aws_key_name" {}
 variable "iam_instance_profile_id" {}
-variable "sg_base_id" {}
 variable "app_conf" { type = "map" }
 
 resource "aws_ecs_cluster" "cluster" {
@@ -24,7 +20,7 @@ resource "aws_security_group" "cluster-sg" {
   name = "${var.stack}-${var.cluster}"
   description = "Service ${var.cluster}"
 
-  vpc_id = "${var.vpc_id}"
+  vpc_id = "${var.vpc_conf["id"]}"
 
   tags {
     Name = "${var.cluster}"
@@ -44,7 +40,7 @@ resource "aws_launch_configuration" "cluster" {
   key_name = "${var.aws_key_name}"
   iam_instance_profile = "${var.iam_instance_profile_id}"
   security_groups = [
-    "${var.sg_base_id}",
+    "${var.vpc_conf["security_group"]}",
     "${aws_security_group.cluster-sg.id}"
   ]
   user_data = "#!/bin/bash\necho ECS_CLUSTER=${aws_ecs_cluster.cluster.name} > /etc/ecs/ecs.config"
@@ -58,11 +54,7 @@ resource "aws_autoscaling_group" "cluster" {
   name                 = "${var.stack}-${var.cluster}"
   launch_configuration = "${aws_launch_configuration.cluster.name}"
 
-  vpc_zone_identifier = [
-    "${var.subnet_a_id}",
-    "${var.subnet_b_id}",
-    "${var.subnet_c_id}"
-  ]
+  vpc_zone_identifier = ["${lookup(var.vpc_conf["subnets"], "private")}"]
 
   tag {
     key = "Name"
@@ -88,6 +80,7 @@ resource "aws_autoscaling_policy" "cluster-autoscale" {
   name = "${var.stack}-${var.cluster}-scale-policy"
   autoscaling_group_name = "${aws_autoscaling_group.cluster.name}"
   adjustment_type = "ChangeInCapacity"
+  metric_aggregation_type = "Maximum"
   policy_type = "StepScaling"
   step_adjustment {
     metric_interval_lower_bound = 3.0
