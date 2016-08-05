@@ -6,8 +6,10 @@ variable "aws_region" {}
 variable "vpc_id" {}
 variable "subnet_a_id" {}
 variable "subnet_b_id" {}
+variable "subnet_c_id" {}
 variable "subnet_public_a_id" {}
 variable "subnet_public_b_id" {}
+variable "subnet_public_c_id" {}
 variable "sg_base_id" {}
 variable "iam_role_arn" {}
 variable "iam_profile" {}
@@ -23,14 +25,14 @@ module "cluster-app" {
   vpc_id = "${var.vpc_id}"
   subnet_a_id = "${var.subnet_a_id}"
   subnet_b_id = "${var.subnet_b_id}"
-  min_size = "${var.app_conf["capacity_min"]}"
-  max_size = "${var.app_conf["capacity_max"]}"
+  subnet_c_id = "${var.subnet_c_id}"
   desired_capacity = "${var.app_conf["capacity_desired"]}"
   aws_image_id = "${var.ami}"
   aws_instance_type = "${var.aws_instance_type}"
   aws_key_name = "${var.aws_key_name}"
   iam_instance_profile_id = "${var.iam_profile}"
   sg_base_id = "${var.sg_base_id}"
+  app_conf = "${var.app_conf}"
 }
 
 data "template_file" "task" {
@@ -63,7 +65,8 @@ resource "aws_elb" "service" {
   name  = "${var.stack}-${var.cluster}-${var.service}-elb"
   subnets = [
     "${var.subnet_public_a_id}",
-    "${var.subnet_public_b_id}"
+    "${var.subnet_public_b_id}",
+    "${var.subnet_public_c_id}"
   ]
 
   security_groups = [
@@ -159,10 +162,35 @@ resource "aws_ecs_service" "service" {
 }
 
 resource "aws_appautoscaling_target" "autoscale-service" {
-  service_namespace = "${var.stack}-${var.cluster}-${var.service}"
+  service_namespace = "ecs"
   resource_id = "service/${var.stack}-${var.cluster}/${var.stack}-${var.cluster}-${var.service}"
   scalable_dimension = "ecs:service:DesiredCount"
   role_arn = "${var.iam_role_arn}"
   min_capacity = "${var.app_conf["capacity_min"]}"
   max_capacity = "${var.app_conf["capacity_max"]}"
+}
+
+resource "aws_appautoscaling_policy" "autoscale-policy-service" {
+  name = "${var.stack}-${var.cluster}-${var.service}"
+  service_namespace = "ecs"
+  resource_id = "service/${var.stack}-${var.cluster}/${var.stack}-${var.cluster}-${var.service}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  adjustment_type = "ChangeInCapacity"
+  cooldown = 3600
+  metric_aggregation_type = "Maximum"
+  step_adjustment {
+    metric_interval_lower_bound = 3.0
+    scaling_adjustment = 2
+  }
+  step_adjustment {
+    metric_interval_lower_bound = 2.0
+    metric_interval_upper_bound = 3.0
+    scaling_adjustment = 2
+  }
+  step_adjustment {
+    metric_interval_lower_bound = 1.0
+    metric_interval_upper_bound = 2.0
+    scaling_adjustment = -1
+  }
+  depends_on = ["aws_appautoscaling_target.autoscale-service"]
 }
