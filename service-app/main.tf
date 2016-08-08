@@ -75,7 +75,8 @@ resource "aws_ecs_task_definition" "app" {
 
 resource "aws_elb" "service" {
   name  = "${var.stack}-${var.cluster}-${var.service}-elb"
-  subnets = ["${lookup(var.vpc_conf["subnets"], "public")}"]
+  /*subnets = ["${lookup(var.vpc_conf["subnets"], "public")}"]*/
+  subnets = ["${var.vpc_conf["subnets_public"]}"]
 
   security_groups = [
     "${aws_security_group.elb-sg.id}",

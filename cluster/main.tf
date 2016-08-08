@@ -54,7 +54,7 @@ resource "aws_autoscaling_group" "cluster" {
   name                 = "${var.stack}-${var.cluster}"
   launch_configuration = "${aws_launch_configuration.cluster.name}"
 
-  vpc_zone_identifier = ["${lookup(var.vpc_conf["subnets"], "private")}"]
+  vpc_zone_identifier = ["${var.vpc_conf["subnet_private"]}"]
 
   tag {
     key = "Name"

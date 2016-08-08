@@ -266,18 +266,8 @@ resource "aws_security_group" "base-sg" {
 data "null_data_source" "vpc_conf" {
   inputs = {
     id = "${aws_vpc.default.id}"
-    subnets = {
-      public = [
-        "${aws_subnet.public-1a.id}",
-        "${aws_subnet.public-1b.id}",
-        "${aws_subnet.public-1c.id}"
-      ]
-      private = [
-        "${aws_subnet.private-1a.id}",
-        "${aws_subnet.private-1b.id}",
-        "${aws_subnet.private-1c.id}"
-      ]
-    }
+    subnets_public = "${aws_subnet.public-1a.id}, ${aws_subnet.public-1b.id}, ${aws_subnet.public-1c.id}"
+    subnets_private = "${aws_subnet.private-1a.id}, ${aws_subnet.private-1b.id}, ${aws_subnet.private-1c.id}"
     security_group = "${aws_security_group.base-sg.id}"
   }
 }
