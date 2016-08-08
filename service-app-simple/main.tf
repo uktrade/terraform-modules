@@ -11,6 +11,15 @@ variable "aws_key_name" {}
 variable "ami" {}
 variable "app_conf" { type = "map" }
 
+variable "vpc_id" {}
+variable "subnets_public_a" {}
+variable "subnets_public_b" {}
+variable "subnets_public_c" {}
+variable "subnets_private_a" {}
+variable "subnets_private_b" {}
+variable "subnets_private_c" {}
+variable "vpc_security_group" {}
+
 module "cluster-app" {
   source = "../../modules/cluster"
   stack = "${var.stack}"
@@ -22,6 +31,15 @@ module "cluster-app" {
   aws_key_name = "${var.aws_key_name}"
   iam_instance_profile_id = "${var.iam_profile}"
   app_conf = "${var.app_conf}"
+
+  vpc_id = "${var.vpc_id}"
+  subnets_public_a = "${var.subnets_public_a}"
+  subnets_public_b = "${var.subnets_public_b}"
+  subnets_public_c = "${var.subnets_public_c}"
+  subnets_private_a = "${var.subnets_private_a}"
+  subnets_private_b = "${var.subnets_private_b}"
+  subnets_private_c = "${var.subnets_private_c}"
+  vpc_security_group = "${var.vpc_security_group}"
 }
 
 data "template_file" "task" {
@@ -52,12 +70,12 @@ resource "aws_ecs_task_definition" "app" {
 
 resource "aws_elb" "service" {
   name  = "${var.stack}-${var.cluster}-${var.service}-elb"
-  /*subnets = ["${lookup(var.vpc_conf["subnets"], "public")}"]*/
-  subnets = ["${var.vpc_conf["subnets_public"]}"]
+  # subnets = ["${lookup(var.vpc_conf["subnets"], "public")}"]
+  subnets = ["${var.subnets_public_a}", "${var.subnets_public_b}", "${var.subnets_public_c}"]
 
   security_groups = [
     "${aws_security_group.elb-sg.id}",
-    "${var.vpc_conf["security_group"]}"
+    "${var.vpc_security_group}"
   ]
 
   listener {
@@ -97,7 +115,7 @@ resource "aws_security_group" "elb-sg" {
   name = "${var.stack}-${var.cluster}-${var.service}-elb"
   description = "ELB Incoming traffic"
 
-  vpc_id = "${var.vpc_conf["id"]}"
+  vpc_id = "${var.vpc_id}"
 
   ingress {
     from_port = 80

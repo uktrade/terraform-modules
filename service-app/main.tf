@@ -13,6 +13,15 @@ variable "ami" {}
 variable "db" { type = "map" }
 variable "app_conf" { type = "map" }
 
+variable "vpc_id" {}
+variable "subnets_public_a" {}
+variable "subnets_public_b" {}
+variable "subnets_public_c" {}
+variable "subnets_private_a" {}
+variable "subnets_private_b" {}
+variable "subnets_private_c" {}
+variable "vpc_security_group" {}
+
 module "app-s3" {
   source = "../../modules/service-s3-backup"
   namespace = "${var.namespace}"
@@ -31,6 +40,15 @@ module "cluster-app" {
   aws_key_name = "${var.aws_key_name}"
   iam_instance_profile_id = "${var.iam_profile}"
   app_conf = "${var.app_conf}"
+
+  vpc_id = "${var.vpc_id}"
+  subnets_public_a = "${var.subnets_public_a}"
+  subnets_public_b = "${var.subnets_public_b}"
+  subnets_public_c = "${var.subnets_public_c}"
+  subnets_private_a = "${var.subnets_private_a}"
+  subnets_private_b = "${var.subnets_private_b}"
+  subnets_private_c = "${var.subnets_private_c}"
+  vpc_security_group = "${var.vpc_security_group}"
 }
 
 module "cluster-db" {
@@ -42,6 +60,24 @@ module "cluster-db" {
   cluster_sg_id = "${module.cluster-app.sg_cluster_id}"
   db = "${var.db}"
   app_conf = "${var.app_conf}"
+
+  vpc_id = "${var.vpc_id}"
+  subnets_public_a = "${var.subnets_public_a}"
+  subnets_public_b = "${var.subnets_public_b}"
+  subnets_public_c = "${var.subnets_public_c}"
+  subnets_private_a = "${var.subnets_private_a}"
+  subnets_private_b = "${var.subnets_private_b}"
+  subnets_private_c = "${var.subnets_private_c}"
+
+  db_version = "${var.db["version"]}"
+  db_family = "${var.db["family"]}"
+  db_storage = "${var.db["storage"]}"
+  db_storage_iops = "${var.db["iops"]}"
+  db_storage_type = "${var.db["storage_type"]}"
+  db_instance_type = "${var.db["instance_type"]}"
+  db_name = "${var.app_conf["db_name"]}"
+  db_username = "${var.app_conf["db_username"]}"
+  db_password = "${var.app_conf["db_password"]}"
 }
 
 data "template_file" "task" {
@@ -75,12 +111,12 @@ resource "aws_ecs_task_definition" "app" {
 
 resource "aws_elb" "service" {
   name  = "${var.stack}-${var.cluster}-${var.service}-elb"
-  /*subnets = ["${lookup(var.vpc_conf["subnets"], "public")}"]*/
-  subnets = ["${var.vpc_conf["subnets_public"]}"]
+  # subnets = ["${lookup(var.vpc_conf["subnets"], "public")}"]
+  subnets = ["${var.subnets_public_a}", "${var.subnets_public_b}", "${var.subnets_public_c}"]
 
   security_groups = [
     "${aws_security_group.elb-sg.id}",
-    "${var.vpc_conf["security_group"]}"
+    "${var.vpc_security_group}"
   ]
 
   listener {
@@ -114,13 +150,17 @@ resource "aws_elb" "service" {
     Stack = "${var.stack}"
     Name = "${var.service}-elb"
   }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_security_group" "elb-sg" {
   name = "${var.stack}-${var.cluster}-${var.service}-elb"
   description = "ELB Incoming traffic"
 
-  vpc_id = "${var.vpc_conf["id"]}"
+  vpc_id = "${var.vpc_id}"
 
   ingress {
     from_port = 80
@@ -138,6 +178,10 @@ resource "aws_security_group" "elb-sg" {
 
   tags {
     Name = "elb-sg"
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
@@ -167,6 +211,10 @@ resource "aws_route53_record" "service-elb" {
     zone_id = "${aws_elb.service.zone_id}"
     evaluate_target_health = false
   }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_ecs_service" "service" {
@@ -186,6 +234,10 @@ resource "aws_ecs_service" "service" {
     container_name = "${var.app_conf["web_container"]}"
     container_port = "${var.app_conf["web_container_port"]}"
   }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_appautoscaling_target" "autoscale-service" {
@@ -195,6 +247,10 @@ resource "aws_appautoscaling_target" "autoscale-service" {
   role_arn = "${var.iam_role_arn}"
   min_capacity = "${var.app_conf["capacity_min"]}"
   max_capacity = "${var.app_conf["capacity_max"]}"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_appautoscaling_policy" "autoscale-policy-service" {
@@ -220,4 +276,8 @@ resource "aws_appautoscaling_policy" "autoscale-policy-service" {
     scaling_adjustment = -1
   }
   depends_on = ["aws_appautoscaling_target.autoscale-service"]
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }

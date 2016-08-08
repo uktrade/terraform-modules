@@ -8,6 +8,15 @@ variable "aws_key_name" {}
 variable "iam_instance_profile_id" {}
 variable "app_conf" { type = "map" }
 
+variable "vpc_id" {}
+variable "subnets_public_a" {}
+variable "subnets_public_b" {}
+variable "subnets_public_c" {}
+variable "subnets_private_a" {}
+variable "subnets_private_b" {}
+variable "subnets_private_c" {}
+variable "vpc_security_group" {}
+
 resource "aws_ecs_cluster" "cluster" {
   name = "${var.stack}-${var.cluster}"
 
@@ -20,7 +29,7 @@ resource "aws_security_group" "cluster-sg" {
   name = "${var.stack}-${var.cluster}"
   description = "Service ${var.cluster}"
 
-  vpc_id = "${var.vpc_conf["id"]}"
+  vpc_id = "${var.vpc_id}"
 
   tags {
     Name = "${var.cluster}"
@@ -40,7 +49,7 @@ resource "aws_launch_configuration" "cluster" {
   key_name = "${var.aws_key_name}"
   iam_instance_profile = "${var.iam_instance_profile_id}"
   security_groups = [
-    "${var.vpc_conf["security_group"]}",
+    "${var.vpc_security_group}",
     "${aws_security_group.cluster-sg.id}"
   ]
   user_data = "#!/bin/bash\necho ECS_CLUSTER=${aws_ecs_cluster.cluster.name} > /etc/ecs/ecs.config"
@@ -54,7 +63,7 @@ resource "aws_autoscaling_group" "cluster" {
   name                 = "${var.stack}-${var.cluster}"
   launch_configuration = "${aws_launch_configuration.cluster.name}"
 
-  vpc_zone_identifier = ["${var.vpc_conf["subnet_private"]}"]
+  vpc_zone_identifier = ["${var.subnets_private_a}", "${var.subnets_private_b}", "${var.subnets_private_c}"]
 
   tag {
     key = "Name"
@@ -74,6 +83,10 @@ resource "aws_autoscaling_group" "cluster" {
 
   # as "Terraform v0.6.14" failed to identify that ASG was in place
   wait_for_capacity_timeout = 0
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_autoscaling_policy" "cluster-autoscale" {
@@ -96,10 +109,18 @@ resource "aws_autoscaling_policy" "cluster-autoscale" {
     metric_interval_upper_bound = 2.0
     scaling_adjustment = -1
   }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_cloudwatch_log_group" "ecs-logs" {
   name = "${var.stack}-${var.cluster}"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 output "sg_cluster_id" {

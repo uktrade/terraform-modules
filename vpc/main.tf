@@ -18,7 +18,12 @@ resource "aws_vpc" "default" {
 }
 
 resource "aws_internet_gateway" "default" {
-    vpc_id = "${aws_vpc.default.id}"
+  vpc_id = "${aws_vpc.default.id}"
+
+  depends_on = ["aws_vpc.default"]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 
@@ -33,6 +38,11 @@ resource "aws_subnet" "public-1a" {
     Stack = "${var.stack}"
     Name = "Public Subnet"
   }
+
+  depends_on = ["aws_vpc.default"]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_subnet" "public-1b" {
@@ -45,6 +55,11 @@ resource "aws_subnet" "public-1b" {
     Stack = "${var.stack}"
     Name = "Public Subnet"
   }
+
+  depends_on = ["aws_vpc.default"]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_subnet" "public-1c" {
@@ -56,6 +71,11 @@ resource "aws_subnet" "public-1c" {
   tags {
     Stack = "${var.stack}"
     Name = "Public Subnet"
+  }
+
+  depends_on = ["aws_vpc.default"]
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
@@ -71,21 +91,41 @@ resource "aws_route_table" "public" {
     Stack = "${var.stack}"
     Name = "Public routing"
   }
+
+  depends_on = ["aws_subnet.public-1a", "aws_subnet.public-1b", "aws_subnet.public-1c"]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_route_table_association" "public-1a" {
   subnet_id = "${aws_subnet.public-1a.id}"
   route_table_id = "${aws_route_table.public.id}"
+
+  depends_on = ["aws_route_table.public"]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_route_table_association" "public-1b" {
   subnet_id = "${aws_subnet.public-1b.id}"
   route_table_id = "${aws_route_table.public.id}"
+
+  depends_on = ["aws_route_table.public"]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_route_table_association" "public-1c" {
   subnet_id = "${aws_subnet.public-1c.id}"
   route_table_id = "${aws_route_table.public.id}"
+
+  depends_on = ["aws_route_table.public"]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 
@@ -100,6 +140,11 @@ resource "aws_subnet" "private-1a" {
     Stack = "${var.stack}"
     Name = "Private Subnet 1a"
   }
+
+  depends_on = ["aws_vpc.default"]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_subnet" "private-1b" {
@@ -111,6 +156,11 @@ resource "aws_subnet" "private-1b" {
   tags {
     Stack = "${var.stack}"
     Name = "Private Subnet 1b"
+  }
+
+  depends_on = ["aws_vpc.default"]
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
@@ -124,36 +174,71 @@ resource "aws_subnet" "private-1c" {
     Stack = "${var.stack}"
     Name = "Private Subnet 1c"
   }
+
+  depends_on = ["aws_vpc.default"]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_eip" "nat-1a" {
   vpc = true
+
+  depends_on = ["aws_vpc.default"]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_eip" "nat-1b" {
   vpc = true
+
+  depends_on = ["aws_vpc.default"]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_eip" "nat-1c" {
   vpc = true
+
+  depends_on = ["aws_vpc.default"]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_nat_gateway" "nat-gw-1a" {
   depends_on = ["aws_internet_gateway.default"]
   allocation_id = "${aws_eip.nat-1a.id}"
   subnet_id = "${aws_subnet.public-1a.id}"
+
+  depends_on = ["aws_eip.nat-1a"]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_nat_gateway" "nat-gw-1b" {
   depends_on = ["aws_internet_gateway.default"]
   allocation_id = "${aws_eip.nat-1b.id}"
   subnet_id = "${aws_subnet.public-1b.id}"
+
+  depends_on = ["aws_eip.nat-1b"]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_nat_gateway" "nat-gw-1c" {
   depends_on = ["aws_internet_gateway.default"]
   allocation_id = "${aws_eip.nat-1c.id}"
   subnet_id = "${aws_subnet.public-1c.id}"
+
+  depends_on = ["aws_eip.nat-1c"]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_route_table" "private-route-1a" {
@@ -167,6 +252,11 @@ resource "aws_route_table" "private-route-1a" {
   tags {
     Stack = "${var.stack}"
     Name = "Private routing"
+  }
+
+  depends_on = ["aws_nat_gateway.nat-gw-1a"]
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
@@ -182,6 +272,11 @@ resource "aws_route_table" "private-route-1b" {
     Stack = "${var.stack}"
     Name = "Private routing"
   }
+
+  depends_on = ["aws_nat_gateway.nat-gw-1b"]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_route_table" "private-route-1c" {
@@ -196,21 +291,41 @@ resource "aws_route_table" "private-route-1c" {
     Stack = "${var.stack}"
     Name = "Private routing"
   }
+
+  depends_on = ["aws_nat_gateway.nat-gw-1c"]
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_route_table_association" "private-1a" {
     subnet_id = "${aws_subnet.private-1a.id}"
     route_table_id = "${aws_route_table.private-route-1a.id}"
+
+    depends_on = ["aws_route_table.private-route-1a"]
+    lifecycle {
+      create_before_destroy = true
+    }
 }
 
 resource "aws_route_table_association" "private-1b" {
     subnet_id = "${aws_subnet.private-1b.id}"
     route_table_id = "${aws_route_table.private-route-1b.id}"
+
+    depends_on = ["aws_route_table.private-route-1a"]
+    lifecycle {
+      create_before_destroy = true
+    }
 }
 
 resource "aws_route_table_association" "private-1c" {
     subnet_id = "${aws_subnet.private-1c.id}"
     route_table_id = "${aws_route_table.private-route-1c.id}"
+
+    depends_on = ["aws_route_table.private-route-1a"]
+    lifecycle {
+      create_before_destroy = true
+    }
 }
 
 #dhcp search
@@ -221,15 +336,30 @@ resource "aws_vpc_dhcp_options" "search" {
     tags {
         Name = "${var.stack}-dhcp-search"
     }
+
+    depends_on = ["aws_subnet.public-1a", "aws_subnet.public-1b", "aws_subnet.public-1c", "aws_subnet.private-1a", "aws_subnet.private-1b", "aws_subnet.private-1c"]
+    lifecycle {
+      create_before_destroy = true
+    }
 }
 
 resource "aws_vpc_dhcp_options_association" "search" {
     vpc_id = "${aws_vpc.default.id}"
     dhcp_options_id = "${aws_vpc_dhcp_options.search.id}"
+
+    depends_on = ["aws_subnet.public-1a", "aws_subnet.public-1b", "aws_subnet.public-1c", "aws_subnet.private-1a", "aws_subnet.private-1b", "aws_subnet.private-1c"]
+    lifecycle {
+      create_before_destroy = true
+    }
 }
 
 resource "aws_vpn_gateway" "vpn_gw" {
     vpc_id = "${aws_vpc.default.id}"
+
+    depends_on = ["aws_vpc.default"]
+    lifecycle {
+      create_before_destroy = true
+    }
 }
 
 # Security group for each host
@@ -258,10 +388,23 @@ resource "aws_security_group" "base-sg" {
     Name = "${var.stack}-default"
   }
 
+  depends_on = ["aws_vpc.default"]
   lifecycle {
     create_before_destroy = true
   }
 }
+
+/*
+data "null_data_source" "vpc_conf" {
+  inputs = {
+    vpc_id = "${aws_vpc.default.id}"
+    subnets = {
+      public = ["${aws_subnet.public-1a.id}", "${aws_subnet.public-1b.id}", "${aws_subnet.public-1c.id}"]
+      private = ["${aws_subnet.private-1a.id}", "${aws_subnet.private-1b.id}", "${aws_subnet.private-1c.id}"]
+    }
+    security_group = "${aws_security_group.base-sg.id}"
+  }
+}*/
 
 data "null_data_source" "vpc_conf" {
   inputs = {
@@ -272,6 +415,39 @@ data "null_data_source" "vpc_conf" {
   }
 }
 
+
 output "vpc_conf" {
   value = "${data.null_data_source.vpc_conf.input}"
+}
+
+output "vpc_id" {
+  value = "${aws_vpc.default.id}"
+}
+
+output "subnets_public_a" {
+  value = "${aws_subnet.public-1a.id}"
+}
+
+output "subnets_public_b" {
+  value = "${aws_subnet.public-1b.id}"
+}
+
+output "subnets_public_c" {
+  value = "${aws_subnet.public-1c.id}"
+}
+
+output "subnets_private_a" {
+  value = "${aws_subnet.private-1a.id}"
+}
+
+output "subnets_private_b" {
+  value = "${aws_subnet.private-1b.id}"
+}
+
+output "subnets_private_c" {
+  value = "${aws_subnet.private-1c.id}"
+}
+
+output "security_group" {
+  value = "${aws_security_group.base-sg.id}"
 }
