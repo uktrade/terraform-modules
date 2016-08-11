@@ -9,12 +9,9 @@ variable "iam_instance_profile_id" {}
 variable "app_conf" { type = "map" }
 
 variable "vpc_id" {}
-variable "subnets_public_a" {}
-variable "subnets_public_b" {}
-variable "subnets_public_c" {}
-variable "subnets_private_a" {}
-variable "subnets_private_b" {}
-variable "subnets_private_c" {}
+variable "subnets_a" {}
+variable "subnets_b" {}
+variable "subnets_c" {}
 variable "vpc_security_group" {}
 
 resource "aws_ecs_cluster" "cluster" {
@@ -63,7 +60,7 @@ resource "aws_autoscaling_group" "cluster" {
   name                 = "${var.stack}-${var.cluster}"
   launch_configuration = "${aws_launch_configuration.cluster.name}"
 
-  vpc_zone_identifier = ["${var.subnets_private_a}", "${var.subnets_private_b}", "${var.subnets_private_c}"]
+  vpc_zone_identifier = ["${var.subnets_a}", "${var.subnets_b}", "${var.subnets_c}"]
 
   tag {
     key = "Name"

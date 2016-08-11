@@ -33,12 +33,9 @@ module "cluster-app" {
   app_conf = "${var.app_conf}"
 
   vpc_id = "${var.vpc_id}"
-  subnets_public_a = "${var.subnets_public_a}"
-  subnets_public_b = "${var.subnets_public_b}"
-  subnets_public_c = "${var.subnets_public_c}"
-  subnets_private_a = "${var.subnets_private_a}"
-  subnets_private_b = "${var.subnets_private_b}"
-  subnets_private_c = "${var.subnets_private_c}"
+  subnets_a = "${var.subnets_public_a}"
+  subnets_b = "${var.subnets_public_b}"
+  subnets_c = "${var.subnets_public_c}"
   vpc_security_group = "${var.vpc_security_group}"
 }
 
