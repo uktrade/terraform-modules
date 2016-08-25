@@ -22,6 +22,62 @@ resource "aws_ecs_cluster" "cluster" {
   }
 }
 
+resource "aws_efs_file_system" "cluster-efs" {
+  tags {
+    Name = "${var.stack}-${var.cluster}"
+  }
+}
+
+resource "aws_security_group" "cluster-efs" {
+  name = "${var.stack}-${var.cluster}-efs"
+  description = "Service ${var.cluster}"
+
+  vpc_id = "${var.vpc_id}"
+
+  ingress {
+    from_port = 0
+    to_port = 0
+    protocol = "-1"
+    security_groups = ["${aws_security_group.cluster-sg.id}"]
+  }
+
+  tags {
+    Name = "${var.cluster}"
+    Stack = "${var.stack}"
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_efs_mount_target" "cluster-efs-a" {
+  file_system_id = "${aws_efs_file_system.cluster-efs.id}"
+  subnet_id = "${var.subnets_a}"
+  security_groups = ["${aws_security_group.cluster-efs.id}"]
+}
+
+resource "aws_efs_mount_target" "cluster-efs-b" {
+  file_system_id = "${aws_efs_file_system.cluster-efs.id}"
+  subnet_id = "${var.subnets_b}"
+  security_groups = ["${aws_security_group.cluster-efs.id}"]
+}
+
+resource "aws_efs_mount_target" "cluster-efs-c" {
+  file_system_id = "${aws_efs_file_system.cluster-efs.id}"
+  subnet_id = "${var.subnets_c}"
+  security_groups = ["${aws_security_group.cluster-efs.id}"]
+}
+
+data "template_file" "cloudinit" {
+  template = "${file("./modules/cluster/cloud-init.conf")}"
+
+  vars {
+    efs_id = "${aws_efs_file_system.cluster-efs.id}"
+    cluster_name = "${aws_ecs_cluster.cluster.name}"
+  }
+}
+
 resource "aws_security_group" "cluster-sg" {
   name = "${var.stack}-${var.cluster}"
   description = "Service ${var.cluster}"
@@ -49,7 +105,7 @@ resource "aws_launch_configuration" "cluster" {
     "${var.vpc_security_group}",
     "${aws_security_group.cluster-sg.id}"
   ]
-  user_data = "#!/bin/bash\necho ECS_CLUSTER=${aws_ecs_cluster.cluster.name} > /etc/ecs/ecs.config"
+  user_data = "${data.template_file.cloudinit.rendered}"
 
   lifecycle {
     create_before_destroy = true
