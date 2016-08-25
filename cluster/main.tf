@@ -176,6 +176,17 @@ resource "aws_cloudwatch_log_group" "ecs-logs" {
   }
 }
 
+data "null_data_source" "cluster_conf" {
+  inputs = {
+    id = "${aws_ecs_cluster.cluster.id}"
+    security_group = "${aws_security_group.cluster-sg.id}"
+  }
+}
+
+output "cluster_conf" {
+  value = "${data.null_data_source.cluster_conf.input}"
+}
+
 output "sg_cluster_id" {
   value = "${aws_security_group.cluster-sg.id}"
 }
