@@ -101,6 +101,10 @@ resource "aws_ecs_task_definition" "app" {
     host_path = "/ecs/${var.stack}"
   }
   volume {
+    name = "${var.stack}-${var.service}"
+    host_path = "/ecs/${var.stack}/${var.service}"
+  }
+  volume {
     name = "backup"
     host_path = "/ecs/${var.stack}"
   }
