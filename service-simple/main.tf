@@ -11,7 +11,6 @@ variable "iam_profile" {}
 variable "aws_instance_type" {}
 variable "aws_key_name" {}
 variable "ami" {}
-variable "db" { type = "map" }
 variable "app_conf" { type = "map" }
 
 variable "vpc_id" {}
@@ -22,6 +21,8 @@ variable "subnets_private_a" {}
 variable "subnets_private_b" {}
 variable "subnets_private_c" {}
 variable "vpc_security_group" {}
+variable "cluster_id" {}
+variable "cluster_sg_id" {}
 
 module "app-s3" {
   source = "../../modules/service-s3-backup"
@@ -46,7 +47,7 @@ data "template_file" "task" {
 }
 
 resource "aws_ecs_task_definition" "app" {
-  family = "${var.stack}-${var.cluster}"
+  family = "${var.stack}-${var.cluster}-${var.service}"
   container_definitions = "${data.template_file.task.rendered}"
 
   volume {
@@ -145,7 +146,7 @@ resource "aws_security_group_rule" "service-http-ingress" {
   to_port = "${var.app_conf["web_container_expose"]}"
   protocol = "tcp"
 
-  security_group_id = "${var.cluster_conf["security_group"]}"
+  security_group_id = "${var.cluster_sg_id}"
   source_security_group_id = "${aws_security_group.elb-sg.id}"
 }
 
@@ -173,7 +174,7 @@ resource "aws_route53_record" "service-elb" {
 
 resource "aws_ecs_service" "service" {
   name = "${var.stack}-${var.cluster}-${var.service}"
-  cluster = "${var.cluster_conf["id"]}"
+  cluster = "${var.cluster_id}"
 
   task_definition = "${aws_ecs_task_definition.app.arn}"
   desired_count = "${var.app_conf["capacity_desired"]}"
