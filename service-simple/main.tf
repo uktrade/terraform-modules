@@ -206,6 +206,7 @@ resource "aws_appautoscaling_target" "autoscale-service" {
   lifecycle {
     create_before_destroy = true
   }
+  depends_on = ["aws_ecs_service.service"]
 }
 
 resource "aws_appautoscaling_policy" "autoscale-policy-service" {
