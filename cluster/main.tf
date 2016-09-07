@@ -55,7 +55,7 @@ resource "aws_security_group" "cluster-efs" {
 resource "aws_efs_mount_target" "cluster-efs" {
   count = "${length(var.vpc_subnets)}"
   file_system_id = "${aws_efs_file_system.cluster-efs.id}"
-  subnet_id = "${element(var.vpc_subnets, count.index)}"
+  subnet_id = "${element(var.vpc_subnets, count.index - 1)}"
   security_groups = ["${aws_security_group.cluster-efs.id}"]
 }
 
