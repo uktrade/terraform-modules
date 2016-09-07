@@ -14,23 +14,58 @@ variable "subnets_private_a" {}
 variable "subnets_private_b" {}
 variable "subnets_private_c" {}
 
-variable "db_version" {}
-variable "db_family" {}
-variable "db_storage" {}
-variable "db_storage_iops" {}
-variable "db_storage_type" {}
-variable "db_instance_type" {}
-variable "db_name" {}
-variable "db_username" {}
-variable "db_password" {}
+variable "iops_enabled" {
+  type = "map"
+  default = {
+    gp2 = "-1"
+    io1 = "1"
+  }
+}
+variable "iops_disabled" {
+  type = "map"
+  default = {
+    gp2 = "1"
+    io1 = "-1"
+  }
+}
 
 resource "aws_db_instance" "app-db" {
-  # count = "${var.app_conf["db_enabled"]}"
+  count = "${signum(lookup(var.iops_disabled, var.db["storage_type"]) + var.app_conf["db_enabled"])}"
   identifier = "${var.stack}-${var.service}-db"
   engine = "postgres"
 
-  # Terraform bug: https://github.com/hashicorp/terraform/issues/8048
-  /*
+  allocated_storage = "${var.db["storage"]}"
+  storage_type = "${var.db["storage_type"]}"
+  engine_version = "${var.db["version"]}"
+  instance_class = "${var.db["instance_type"]}"
+  name = "${var.app_conf["db_name"]}"
+  username = "${var.app_conf["db_username"]}"
+  password = "${var.app_conf["db_password"]}"
+
+  parameter_group_name = "${aws_db_parameter_group.default-params.name}"
+  db_subnet_group_name = "${aws_db_subnet_group.default-db-subnet.id}"
+  vpc_security_group_ids = ["${aws_security_group.default-db-sg.id}"]
+  backup_retention_period = "30"
+  multi_az = false
+  publicly_accessible = false
+  auto_minor_version_upgrade = true
+  apply_immediately = true
+  skip_final_snapshot = false
+
+  tags = {
+    Name = "${var.stack}-${var.service}-db"
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_db_instance" "app-db-iops" {
+  count = "${signum(lookup(var.iops_enabled, var.db["storage_type"]) + var.app_conf["db_enabled"])}"
+  identifier = "${var.stack}-${var.service}-db"
+  engine = "postgres"
+
   allocated_storage = "${var.db["storage"]}"
   storage_type = "${var.db["storage_type"]}"
   iops = "${var.db["iops"]}"
@@ -39,16 +74,6 @@ resource "aws_db_instance" "app-db" {
   name = "${var.app_conf["db_name"]}"
   username = "${var.app_conf["db_username"]}"
   password = "${var.app_conf["db_password"]}"
-  */
-
-  allocated_storage = "${var.db_storage}"
-  storage_type = "${var.db_storage_type}"
-  iops = "${var.db_storage_iops}"
-  engine_version = "${var.db_version}"
-  instance_class = "${var.db_instance_type}"
-  name = "${var.db_name}"
-  username = "${var.db_username}"
-  password = "${var.db_password}"
 
   parameter_group_name = "${aws_db_parameter_group.default-params.name}"
   db_subnet_group_name = "${aws_db_subnet_group.default-db-subnet.id}"
@@ -123,6 +148,26 @@ resource "aws_db_subnet_group" "default-db-subnet" {
     }
 }
 
-output "app_db_endpoint" {
+data "null_data_source" "db_conf" {
+  inputs = {
+    host = "${aws_db_instance.app-db.address}"
+    url = "postgres://${var.app_conf["db_username"]}:${var.app_conf["db_password"]}@${aws_db_instance.app-db.endpoint}/${var.app_conf["db_name"]}?sslmode=require"
+  }
+}
+
+output "db_conf" {
+  value = "${data.null_data_source.db_conf.input}"
+}
+
+
+output "db_host" {
+  value = "${aws_db_instance.app-db.address}"
+}
+
+output "db_port" {
+  value = "${aws_db_instance.app-db.port}"
+}
+
+output "db_url" {
   value = "postgres://${var.app_conf["db_username"]}:${var.app_conf["db_password"]}@${aws_db_instance.app-db.endpoint}/${var.app_conf["db_name"]}?sslmode=require"
 }

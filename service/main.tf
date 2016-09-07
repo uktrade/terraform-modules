@@ -22,6 +22,8 @@ variable "subnets_private_a" {}
 variable "subnets_private_b" {}
 variable "subnets_private_c" {}
 variable "vpc_security_group" {}
+variable "cluster_id" {}
+variable "cluster_sg_id" {}
 
 module "app-s3" {
   source = "../../modules/service-s3-backup"
@@ -37,7 +39,7 @@ module "cluster-db" {
   cluster = "${var.cluster}"
   service = "${var.service}"
   vpc_conf = "${var.vpc_conf}"
-  cluster_sg_id = "${var.cluster_conf["id"]}"
+  cluster_sg_id = "${var.cluster_sg_id}"
   db = "${var.db}"
   app_conf = "${var.app_conf}"
 
@@ -48,16 +50,6 @@ module "cluster-db" {
   subnets_private_a = "${var.subnets_private_a}"
   subnets_private_b = "${var.subnets_private_b}"
   subnets_private_c = "${var.subnets_private_c}"
-
-  db_version = "${var.db["version"]}"
-  db_family = "${var.db["family"]}"
-  db_storage = "${var.db["storage"]}"
-  db_storage_iops = "${var.db["iops"]}"
-  db_storage_type = "${var.db["storage_type"]}"
-  db_instance_type = "${var.db["instance_type"]}"
-  db_name = "${var.app_conf["db_name"]}"
-  db_username = "${var.app_conf["db_username"]}"
-  db_password = "${var.app_conf["db_password"]}"
 }
 
 data "template_file" "task" {
@@ -71,7 +63,9 @@ data "template_file" "task" {
     cluster = "${var.cluster}"
     service = "${var.service}"
     aws_region = "${var.aws_region}"
-    db_url = "${module.cluster-db.app_db_endpoint}"
+    db_host = "${module.cluster-db.db_host}"
+    db_port = "${module.cluster-db.db_port}"
+    db_url = "${module.cluster-db.db_url}"
   }
 }
 
@@ -175,7 +169,7 @@ resource "aws_security_group_rule" "service-http-ingress" {
   to_port = "${var.app_conf["web_container_expose"]}"
   protocol = "tcp"
 
-  security_group_id = "${var.cluster_conf["security_group"]}"
+  security_group_id = "${var.cluster_sg_id}"
   source_security_group_id = "${aws_security_group.elb-sg.id}"
 }
 
@@ -203,7 +197,7 @@ resource "aws_route53_record" "service-elb" {
 
 resource "aws_ecs_service" "service" {
   name = "${var.stack}-${var.cluster}-${var.service}"
-  cluster = "${var.cluster_conf["id"]}"
+  cluster = "${var.cluster_id}"
 
   task_definition = "${aws_ecs_task_definition.app.arn}"
   desired_count = "${var.app_conf["capacity_desired"]}"
@@ -231,6 +225,8 @@ resource "aws_appautoscaling_target" "autoscale-service" {
   role_arn = "${var.iam_role_arn}"
   min_capacity = "${var.app_conf["capacity_min"]}"
   max_capacity = "${var.app_conf["capacity_max"]}"
+
+  depends_on = ["aws_ecs_service.service"]
 
   lifecycle {
     create_before_destroy = true
