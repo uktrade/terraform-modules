@@ -7,12 +7,13 @@ variable "aws_instance_type" {}
 variable "aws_key_name" {}
 variable "iam_instance_profile_id" {}
 variable "app_conf" { type = "map" }
+variable "vpc_subnets" { type = "list" }
 
-variable "vpc_id" {}
+/*variable "vpc_id" {}
 variable "subnets_a" {}
 variable "subnets_b" {}
 variable "subnets_c" {}
-variable "vpc_security_group" {}
+variable "vpc_security_group" {}*/
 
 resource "aws_ecs_cluster" "cluster" {
   name = "${var.stack}-${var.cluster}"
@@ -32,7 +33,7 @@ resource "aws_security_group" "cluster-efs" {
   name = "${var.stack}-${var.cluster}-efs"
   description = "Service ${var.cluster}"
 
-  vpc_id = "${var.vpc_id}"
+  vpc_id = "${var.vpc_conf["id"]}"
 
   ingress {
     from_port = 0
@@ -51,13 +52,14 @@ resource "aws_security_group" "cluster-efs" {
   }
 }
 
-resource "aws_efs_mount_target" "cluster-efs-a" {
+resource "aws_efs_mount_target" "cluster-efs" {
+  count = "${length(var.vpc_subnets)}"
   file_system_id = "${aws_efs_file_system.cluster-efs.id}"
-  subnet_id = "${var.subnets_a}"
+  subnet_id = "${element(var.vpc_subnets, count.index)}"
   security_groups = ["${aws_security_group.cluster-efs.id}"]
 }
 
-resource "aws_efs_mount_target" "cluster-efs-b" {
+/*resource "aws_efs_mount_target" "cluster-efs-b" {
   file_system_id = "${aws_efs_file_system.cluster-efs.id}"
   subnet_id = "${var.subnets_b}"
   security_groups = ["${aws_security_group.cluster-efs.id}"]
@@ -67,7 +69,7 @@ resource "aws_efs_mount_target" "cluster-efs-c" {
   file_system_id = "${aws_efs_file_system.cluster-efs.id}"
   subnet_id = "${var.subnets_c}"
   security_groups = ["${aws_security_group.cluster-efs.id}"]
-}
+}*/
 
 data "template_file" "cloudinit" {
   template = "${file("./modules/cluster/cloud-init.conf")}"
@@ -82,7 +84,7 @@ resource "aws_security_group" "cluster-sg" {
   name = "${var.stack}-${var.cluster}"
   description = "Service ${var.cluster}"
 
-  vpc_id = "${var.vpc_id}"
+  vpc_id = "${var.vpc_conf["id"]}"
 
   tags {
     Name = "${var.cluster}"
@@ -102,7 +104,7 @@ resource "aws_launch_configuration" "cluster" {
   key_name = "${var.aws_key_name}"
   iam_instance_profile = "${var.iam_instance_profile_id}"
   security_groups = [
-    "${var.vpc_security_group}",
+    "${var.vpc_conf["security_group"]}",
     "${aws_security_group.cluster-sg.id}"
   ]
   user_data = "${data.template_file.cloudinit.rendered}"
@@ -116,7 +118,7 @@ resource "aws_autoscaling_group" "cluster" {
   name                 = "${var.stack}-${var.cluster}"
   launch_configuration = "${aws_launch_configuration.cluster.name}"
 
-  vpc_zone_identifier = ["${var.subnets_a}", "${var.subnets_b}", "${var.subnets_c}"]
+  vpc_zone_identifier = "${var.vpc_subnets}"
 
   tag {
     key = "Name"
@@ -176,17 +178,14 @@ resource "aws_cloudwatch_log_group" "ecs-logs" {
   }
 }
 
-data "null_data_source" "cluster_conf" {
-  inputs = {
-    id = "${aws_ecs_cluster.cluster.id}"
-    security_group = "${aws_security_group.cluster-sg.id}"
-  }
-}
-
 output "cluster_conf" {
-  value = "${data.null_data_source.cluster_conf.input}"
+  value = "${map(
+    "id", "${aws_ecs_cluster.cluster.id}",
+    "security_group", "${aws_security_group.cluster-sg.id}"
+  )}"
 }
 
+/*
 output "sg_cluster_id" {
   value = "${aws_security_group.cluster-sg.id}"
 }
@@ -194,3 +193,4 @@ output "sg_cluster_id" {
 output "cluster_id" {
   value = "${aws_ecs_cluster.cluster.id}"
 }
+*/

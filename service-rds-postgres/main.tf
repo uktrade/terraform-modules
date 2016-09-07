@@ -2,17 +2,18 @@ variable "stack" {}
 variable "cluster" {}
 variable "service" {}
 variable "vpc_conf" { type = "map" }
-variable "cluster_sg_id" {}
+variable "cluster_conf" { type = "map" }
 variable "db" { type = "map" }
 variable "app_conf" { type = "map" }
 
-variable "vpc_id" {}
+/*variable "vpc_id" {}
 variable "subnets_public_a" {}
 variable "subnets_public_b" {}
 variable "subnets_public_c" {}
 variable "subnets_private_a" {}
 variable "subnets_private_b" {}
 variable "subnets_private_c" {}
+variable "cluster_sg_id" {}*/
 
 variable "iops_enabled" {
   type = "map"
@@ -28,6 +29,7 @@ variable "iops_disabled" {
     io1 = "-1"
   }
 }
+
 
 resource "aws_db_instance" "app-db" {
   count = "${signum(lookup(var.iops_disabled, var.db["storage_type"]) + var.app_conf["db_enabled"])}"
@@ -94,6 +96,19 @@ resource "aws_db_instance" "app-db-iops" {
   }
 }
 
+/*module "app-db" {
+  source = "../../modules/rds-${var.db["storage_type"]}"
+  stack = "${var.stack}"
+  cluster = "${var.cluster}"
+  service = "${var.service}"
+  vpc_conf = "${var.vpc_conf}"
+  db = "${var.db}"
+  app_conf = "${var.app_conf}"
+  rds_param = "${aws_db_parameter_group.default-params.name}"
+  rds_subnet = "${aws_db_subnet_group.default-db-subnet.id}"
+  rds_sg = "${aws_security_group.default-db-sg.id}"
+}*/
+
 resource "aws_db_parameter_group" "default-params" {
     name = "${var.stack}-${var.service}-params"
     family = "${var.db["family"]}"
@@ -112,13 +127,13 @@ resource "aws_db_parameter_group" "default-params" {
 
 resource "aws_security_group" "default-db-sg" {
   name = "${var.stack}-${var.service}-sg"
-  vpc_id = "${var.vpc_id}"
+  vpc_id = "${var.vpc_conf["id"]}"
 
   ingress {
     from_port = 5432
     to_port = 5432
     protocol = "TCP"
-    security_groups = ["${var.cluster_sg_id}"]
+    security_groups = ["${var.cluster_conf["security_group"]}"]
   }
 
   egress {
@@ -140,23 +155,19 @@ resource "aws_security_group" "default-db-sg" {
 resource "aws_db_subnet_group" "default-db-subnet" {
     name = "${var.stack}-${var.service}-subnet"
     description = "${var.stack}-${var.service}-subnet"
-    # subnet_ids = ["${lookup(var.vpc_conf["subnets"], "private")}"]
-    subnet_ids = ["${var.subnets_private_a}", "${var.subnets_private_b}", "${var.subnets_private_c}"]
+    subnet_ids = "${var.vpc_conf["subnets_private"]}"
 
     lifecycle {
       create_before_destroy = true
     }
 }
 
-data "null_data_source" "db_conf" {
-  inputs = {
-    host = "${aws_db_instance.app-db.address}"
-    url = "postgres://${var.app_conf["db_username"]}:${var.app_conf["db_password"]}@${aws_db_instance.app-db.endpoint}/${var.app_conf["db_name"]}?sslmode=require"
-  }
-}
-
 output "db_conf" {
-  value = "${data.null_data_source.db_conf.input}"
+  value = "${map(
+    "host", "${aws_db_instance.app-db.address}",
+    "port", "${aws_db_instance.app-db.port}",
+    "url", "postgres://${var.app_conf["db_username"]}:${var.app_conf["db_password"]}@${aws_db_instance.app-db.endpoint}/${var.app_conf["db_name"]}?sslmode=require"
+  )}"
 }
 
 

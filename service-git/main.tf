@@ -14,7 +14,7 @@ variable "ami" {}
 variable "db" { type = "map" }
 variable "app_conf" { type = "map" }
 
-variable "vpc_id" {}
+/*variable "vpc_id" {}
 variable "subnets_public_a" {}
 variable "subnets_public_b" {}
 variable "subnets_public_c" {}
@@ -23,7 +23,7 @@ variable "subnets_private_b" {}
 variable "subnets_private_c" {}
 variable "vpc_security_group" {}
 variable "cluster_id" {}
-variable "cluster_sg_id" {}
+variable "cluster_sg_id" {}*/
 
 module "app-s3" {
   source = "../../modules/service-s3-backup"
@@ -39,17 +39,18 @@ module "cluster-db" {
   cluster = "${var.cluster}"
   service = "${var.service}"
   vpc_conf = "${var.vpc_conf}"
-  cluster_sg_id = "${var.cluster_sg_id}"
+  cluster_conf = "${var.cluster_conf}"
   db = "${var.db}"
   app_conf = "${var.app_conf}"
 
-  vpc_id = "${var.vpc_id}"
+  /*vpc_id = "${var.vpc_id}"
   subnets_public_a = "${var.subnets_public_a}"
   subnets_public_b = "${var.subnets_public_b}"
   subnets_public_c = "${var.subnets_public_c}"
   subnets_private_a = "${var.subnets_private_a}"
   subnets_private_b = "${var.subnets_private_b}"
   subnets_private_c = "${var.subnets_private_c}"
+  cluster_sg_id = "${var.cluster_sg_id}"*/
 }
 
 data "template_file" "task" {
@@ -89,12 +90,11 @@ resource "aws_ecs_task_definition" "app" {
 
 resource "aws_elb" "service" {
   name  = "${var.stack}-${var.cluster}-${var.service}-elb"
-  # subnets = ["${lookup(var.vpc_conf["subnets"], "public")}"]
-  subnets = ["${var.subnets_public_a}", "${var.subnets_public_b}", "${var.subnets_public_c}"]
+  subnets = "${var.vpc_conf["subnets_public"]}"
 
   security_groups = [
     "${aws_security_group.elb-sg.id}",
-    "${var.vpc_security_group}"
+    "${var.vpc_conf["security_group"]}"
   ]
 
   listener {
@@ -145,7 +145,7 @@ resource "aws_security_group" "elb-sg" {
   name = "${var.stack}-${var.cluster}-${var.service}-elb"
   description = "ELB Incoming traffic"
 
-  vpc_id = "${var.vpc_id}"
+  vpc_id = "${var.vpc_conf["id"]}"
 
   ingress {
     from_port = 0
@@ -183,7 +183,7 @@ resource "aws_security_group_rule" "service-http-ingress" {
   to_port = "${var.app_conf["web_container_expose"]}"
   protocol = "tcp"
 
-  security_group_id = "${var.cluster_sg_id}"
+  security_group_id = "${var.cluster_conf["security_group"]}"
   source_security_group_id = "${aws_security_group.elb-sg.id}"
 }
 
@@ -211,7 +211,7 @@ resource "aws_route53_record" "service-elb" {
 
 resource "aws_ecs_service" "service" {
   name = "${var.stack}-${var.cluster}-${var.service}"
-  cluster = "${var.cluster_id}"
+  cluster = "${var.cluster_conf["id"]}"
 
   task_definition = "${aws_ecs_task_definition.app.arn}"
   desired_count = "${var.app_conf["capacity_desired"]}"

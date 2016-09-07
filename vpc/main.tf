@@ -404,7 +404,7 @@ data "null_data_source" "vpc_conf" {
     }
     security_group = "${aws_security_group.base-sg.id}"
   }
-}*/
+}
 
 data "null_data_source" "vpc_conf" {
   inputs = {
@@ -414,12 +414,17 @@ data "null_data_source" "vpc_conf" {
     security_group = "${aws_security_group.base-sg.id}"
   }
 }
-
+*/
 
 output "vpc_conf" {
-  value = "${data.null_data_source.vpc_conf.input}"
+  value = "${map(
+    "id", "${aws_vpc.default.id}",
+    "subnets_public", list("${aws_subnet.public-1a.id}", "${aws_subnet.public-1b.id}", "${aws_subnet.public-1c.id}"),
+    "subnets_private", list("${aws_subnet.private-1a.id}", "${aws_subnet.private-1b.id}", "${aws_subnet.private-1c.id}"),
+    "security_group", "${aws_security_group.base-sg.id}"
+  )}"
 }
-
+/*
 output "vpc_id" {
   value = "${aws_vpc.default.id}"
 }
@@ -451,3 +456,4 @@ output "subnets_private_c" {
 output "security_group" {
   value = "${aws_security_group.base-sg.id}"
 }
+*/
