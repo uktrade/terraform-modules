@@ -12,59 +12,9 @@ variable "subnets_public_b" {}
 variable "subnets_public_c" {}
 variable "subnets_private_a" {}
 variable "subnets_private_b" {}
-variable "subnets_private_c" {}
-variable "cluster_sg_id" {}*/
-
-variable "iops_enabled" {
-  type = "map"
-  default = {
-    gp2 = "-1"
-    io1 = "1"
-  }
-}
-variable "iops_disabled" {
-  type = "map"
-  default = {
-    gp2 = "1"
-    io1 = "-1"
-  }
-}
-
+variable "subnets_private_c" {}*/
 
 resource "aws_db_instance" "app-db" {
-  count = "${signum(lookup(var.iops_disabled, var.db["storage_type"]) + var.app_conf["db_enabled"])}"
-  identifier = "${var.stack}-${var.service}-db"
-  engine = "postgres"
-
-  allocated_storage = "${var.db["storage"]}"
-  storage_type = "${var.db["storage_type"]}"
-  engine_version = "${var.db["version"]}"
-  instance_class = "${var.db["instance_type"]}"
-  name = "${var.app_conf["db_name"]}"
-  username = "${var.app_conf["db_username"]}"
-  password = "${var.app_conf["db_password"]}"
-
-  parameter_group_name = "${aws_db_parameter_group.default-params.name}"
-  db_subnet_group_name = "${aws_db_subnet_group.default-db-subnet.id}"
-  vpc_security_group_ids = ["${aws_security_group.default-db-sg.id}"]
-  backup_retention_period = "30"
-  multi_az = false
-  publicly_accessible = false
-  auto_minor_version_upgrade = true
-  apply_immediately = true
-  skip_final_snapshot = false
-
-  tags = {
-    Name = "${var.stack}-${var.service}-db"
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-resource "aws_db_instance" "app-db-iops" {
-  count = "${signum(lookup(var.iops_enabled, var.db["storage_type"]) + var.app_conf["db_enabled"])}"
   identifier = "${var.stack}-${var.service}-db"
   engine = "postgres"
 
@@ -81,8 +31,8 @@ resource "aws_db_instance" "app-db-iops" {
   db_subnet_group_name = "${aws_db_subnet_group.default-db-subnet.id}"
   vpc_security_group_ids = ["${aws_security_group.default-db-sg.id}"]
   backup_retention_period = "30"
-  multi_az = true
-  publicly_accessible = false
+  multi_az = "${var.db["multi_az"]}"
+  publicly_accessible = "${var.db["publicly_accessible"]}"
   auto_minor_version_upgrade = true
   apply_immediately = true
   skip_final_snapshot = false
@@ -95,19 +45,6 @@ resource "aws_db_instance" "app-db-iops" {
     create_before_destroy = true
   }
 }
-
-/*module "app-db" {
-  source = "../../modules/rds-${var.db["storage_type"]}"
-  stack = "${var.stack}"
-  cluster = "${var.cluster}"
-  service = "${var.service}"
-  vpc_conf = "${var.vpc_conf}"
-  db = "${var.db}"
-  app_conf = "${var.app_conf}"
-  rds_param = "${aws_db_parameter_group.default-params.name}"
-  rds_subnet = "${aws_db_subnet_group.default-db-subnet.id}"
-  rds_sg = "${aws_security_group.default-db-sg.id}"
-}*/
 
 resource "aws_db_parameter_group" "default-params" {
     name = "${var.stack}-${var.service}-params"
