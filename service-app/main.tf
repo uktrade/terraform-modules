@@ -85,7 +85,7 @@ data "template_file" "task" {
 }
 
 resource "aws_ecs_task_definition" "app" {
-  family = "${var.stack}-${var.cluster}"
+  family = "${var.stack}-${var.cluster}-${var.service}"
   container_definitions = "${data.template_file.task.rendered}"
 
   volume {
