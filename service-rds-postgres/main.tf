@@ -33,6 +33,7 @@ resource "aws_db_instance" "app-db" {
   backup_retention_period = "30"
   multi_az = "${var.db["multi_az"]}"
   publicly_accessible = "${var.db["publicly_accessible"]}"
+  storage_encrypted = "${var.db["storage_encrypted"]}"
   auto_minor_version_upgrade = true
   apply_immediately = true
   skip_final_snapshot = false
