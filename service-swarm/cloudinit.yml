@@ -1,0 +1,44 @@
+#cloud-config
+
+package_upgrade: true
+packages:
+- nfs-common
+runcmd:
+  - mkdir -p /etc/ecs /ecs /var/log/ecs /var/lib/ecs/data
+  - export EC2_AVAIL_ZONE=`curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone`
+  - export EC2_REGION="`echo \"$EC2_AVAIL_ZONE\" | sed -e 's:\([0-9][0-9]*\)[a-z]*\$:\\1:'`"
+  - echo "$EC2_AVAIL_ZONE.${efs_id}.efs.$EC2_REGION.amazonaws.com:/ /ecs nfs defaults,vers=4.1 0 0" >> /etc/fstab
+  - mount -a -t nfs
+  - chown ec2-user:ec2-user /ecs
+  - curl -sSL https://get.docker.com/ | sh
+  - sed -i 's/^ExecStart=.*/ExecStart=\/usr\/bin\/dockerd -H tcp:\/\/0.0.0.0:2375 -H unix:\/\/\/var\/run\/docker.sock -H fd:\/\/ --tls=false/g' /lib/systemd/system/docker.service
+  - systemctl daemon-reload && systemctl restart docker
+  - sysctl -w net.ipv4.conf.all.route_localnet=1
+  - iptables -t nat -A PREROUTING -p tcp -d 169.254.170.2 --dport 80 -j DNAT --to-destination 127.0.0.1:51679
+  - iptables -t nat -A OUTPUT -d 169.254.170.2 -p tcp -m tcp --dport 80 -j REDIRECT --to-ports 51679
+  - echo ECS_CLUSTER=${cluster_name} > /etc/ecs/ecs.config
+  - >
+    docker run --name ecs-agent \
+      --detach=true \
+      --restart=on-failure:10 \
+      --volume=/var/run/docker.sock:/var/run/docker.sock \
+      --volume=/var/log/ecs/:/log \
+      --volume=/var/lib/ecs/data:/data \
+      --net=host \
+      --env=ECS_LOGFILE=/log/ecs-agent.log \
+      --env=ECS_LOGLEVEL=info \
+      --env=ECS_DATADIR=/data \
+      --env=ECS_CLUSTER=${cluster_name} \
+      --env=ECS_ENABLE_TASK_IAM_ROLE=true \
+      --env=ECS_ENABLE_TASK_IAM_ROLE_NETWORK_HOST=true \
+      amazon/amazon-ecs-agent:latest
+  - >
+    docker run -d \
+    -p 8300:8300 -p 8301:8301 \
+    -p 8301:8301/udp -p 8302:8302 \
+    -p 8302:8302/udp -p 8400:8400 \
+    -p 8500:8500 -p 8600:8600 \
+    -p 8600:8600/udp \
+    --name=consul consul agent -server -client=0.0.0.0 -protocol=3 --advertise=$(curl -Lfs http://169.254.169.254/latest/meta-data/local-ipv4) --advertise-wan=$(curl -Lfs http://169.254.169.254/latest/meta-data/local-ipv4) -join=${swarm_consul} -ui
+  - docker run -d -p 4000:4000 --name=swarm-manager swarm manage -H :4000 --replication --advertise $(curl -Lfs http://169.254.169.254/latest/meta-data/local-ipv4):4000 consul://${swarm_consul}:8500
+  - docker run -d --name=swarm swarm join --advertise=$(curl -Lfs http://169.254.169.254/latest/meta-data/local-ipv4):2375 consul://${swarm_consul}:8500
