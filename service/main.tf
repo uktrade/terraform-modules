@@ -109,7 +109,7 @@ resource "aws_elb" "service" {
     lb_protocol        = "https"
     ssl_certificate_id = "${var.app_conf["aws_ssl_arn"]}"
     instance_port      = "${var.app_conf["web_container_expose"]}"
-    instance_protocol  = "http"
+    instance_protocol  = "https"
   }
 
   health_check {
