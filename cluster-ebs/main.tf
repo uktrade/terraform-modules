@@ -71,6 +71,10 @@ resource "aws_instance" "cluster_instance" {
   iam_instance_profile = "${var.iam_instance_profile_id}"
   associate_public_ip_address = false
   source_dest_check = true
+  root_block_device {
+    volume_type = "gp2"
+    volume_size = 40
+  }
   vpc_security_group_ids = [
     "${var.vpc_security_group}",
     "${aws_security_group.cluster-sg.id}"
